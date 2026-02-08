@@ -121,7 +121,7 @@ jobs:
 
     - name: Build MbedTLS 3.6 from source
       run: |
-        git clone --depth 1 --branch v3.6.2 https://github.com/Mbed-TLS/mbedtls.git /tmp/mbedtls
+        git clone --depth 1 --branch v3.6.2 --recurse-submodules https://github.com/Mbed-TLS/mbedtls.git /tmp/mbedtls
         cmake -S /tmp/mbedtls -B /tmp/mbedtls/build \
           -DCMAKE_INSTALL_PREFIX=/usr/local \
           -DENABLE_PROGRAMS=OFF \
