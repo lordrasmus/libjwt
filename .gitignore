@@ -2,5 +2,9 @@
 /build/**
 /out/**
 
+# Fuzz: AFL++ local build and findings
+/fuzz/AFLplusplus/
+/fuzz/findings_*/
+
 # VIM
 *.swp

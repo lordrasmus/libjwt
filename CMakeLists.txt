@@ -373,5 +373,46 @@ if (NOT ENABLE_COVERAGE)
 		VERBATIM)
 endif()
 
+option(WITH_FUZZ "Build fuzz targets (requires clang with libFuzzer)" OFF)
+
+if(WITH_FUZZ)
+    if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        message(FATAL_ERROR "Fuzzing requires clang (for libFuzzer)")
+    endif()
+
+    function(jwt_add_fuzz NAME)
+        add_executable(${NAME} fuzz/clang/${NAME}.c)
+        target_link_libraries(${NAME} PRIVATE jwt_static)
+        target_compile_options(${NAME} PRIVATE
+            -fsanitize=fuzzer,address,undefined
+            -fno-omit-frame-pointer
+            -DJWT_STATIC_DEFINE)
+        target_link_options(${NAME} PRIVATE
+            -fsanitize=fuzzer,address,undefined)
+        set_target_properties(${NAME} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/fuzz")
+    endfunction()
+
+    jwt_add_fuzz(fuzz_jwt_verify)
+    jwt_add_fuzz(fuzz_jwks_parse)
+endif()
+
+option(WITH_AFL "Build AFL++ fuzz targets (requires afl-clang-fast)" OFF)
+
+if(WITH_AFL)
+    function(jwt_add_afl NAME)
+        add_executable(${NAME} fuzz/afl/${NAME}.c)
+        target_link_libraries(${NAME} PRIVATE jwt_static)
+        target_compile_options(${NAME} PRIVATE
+            -fno-omit-frame-pointer
+            -DJWT_STATIC_DEFINE)
+        set_target_properties(${NAME} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/fuzz")
+    endfunction()
+
+    jwt_add_afl(afl_jwt_verify)
+    jwt_add_afl(afl_jwks_parse)
+endif()
+
 set(CPACK_PROPERTIES_FILE "${CMAKE_SOURCE_DIR}/cmake/CPackConfig.cmake")
 include(CPack)
