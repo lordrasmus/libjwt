@@ -124,6 +124,7 @@ jobs:
         git clone --depth 1 --branch v3.6.2 --recurse-submodules https://github.com/Mbed-TLS/mbedtls.git /tmp/mbedtls
         cmake -S /tmp/mbedtls -B /tmp/mbedtls/build \
           -DCMAKE_INSTALL_PREFIX=/usr/local \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
           -DENABLE_PROGRAMS=OFF \
           -DENABLE_TESTING=OFF \
           -DCMAKE_BUILD_TYPE=Release
