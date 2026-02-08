@@ -138,6 +138,32 @@ struct jwk_item {
 	jwt_json_t *json;	/**< The jwt_json_t for this key			*/
 };
 
+/* Raw decoded key component (base64url decoded) */
+typedef struct {
+	unsigned char *bin;
+	int len;
+} jwk_raw_t;
+
+typedef struct {
+	jwk_raw_t n, e;                 /* public (required) */
+	jwk_raw_t d, p, q, dp, dq, qi; /* private (optional) */
+	int is_pss;                     /* reserved, no longer used */
+	int is_private;
+} jwk_rsa_raw_t;
+
+typedef struct {
+	const char *curve;              /* JWK curve: "P-256", "P-384", "P-521" */
+	jwk_raw_t x, y;                /* public (required) */
+	jwk_raw_t d;                   /* private (optional) */
+	int is_private;
+} jwk_ec_raw_t;
+
+typedef struct {
+	const char *curve;              /* "Ed25519" or "Ed448" */
+	jwk_raw_t key;                 /* pub (from "x") or priv (from "d") */
+	int is_private;
+} jwk_eddsa_raw_t;
+
 /* Crypto operations */
 struct jwt_crypto_ops {
 	const char *name;
@@ -156,9 +182,9 @@ struct jwt_crypto_ops {
 
 	/* Parsing a JWK to prepare it for use */
 	int jwk_implemented;
-	int (*process_eddsa)(jwt_json_t *jwk, jwk_item_t *item);
-	int (*process_rsa)(jwt_json_t *jwk, jwk_item_t *item);
-	int (*process_ec)(jwt_json_t *jwk, jwk_item_t *item);
+	int (*process_eddsa)(jwk_item_t *item, const jwk_eddsa_raw_t *raw);
+	int (*process_rsa)(jwk_item_t *item, const jwk_rsa_raw_t *raw);
+	int (*process_ec)(jwk_item_t *item, const jwk_ec_raw_t *raw);
 	void (*process_item_free)(jwk_item_t *item);
 };
 

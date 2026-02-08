@@ -9,15 +9,9 @@
 #ifndef JWT_GNUTLS_H
 #define JWT_GNUTLS_H
 
-/* Until we have our own routines, we rely on OpenSSL */
-int openssl_process_eddsa(jwt_json_t *jwk, jwk_item_t *item);
-int openssl_process_rsa(jwt_json_t *jwk, jwk_item_t *item);
-int openssl_process_ec(jwt_json_t *jwk, jwk_item_t *item);
-void openssl_process_item_free(jwk_item_t *item);
-
-int gnutls_process_eddsa(jwt_json_t *jwk, jwk_item_t *item);
-int gnutls_process_rsa(jwt_json_t *jwk, jwk_item_t *item);
-int gnutls_process_ec(jwt_json_t *jwk, jwk_item_t *item);
+int gnutls_process_eddsa(jwk_item_t *item, const jwk_eddsa_raw_t *raw);
+int gnutls_process_rsa(jwk_item_t *item, const jwk_rsa_raw_t *raw);
+int gnutls_process_ec(jwk_item_t *item, const jwk_ec_raw_t *raw);
 void gnutls_process_item_free(jwk_item_t *item);
 
 #endif /* JWT_GNUTLS_H */

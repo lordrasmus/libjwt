@@ -20,6 +20,7 @@ project(${LIBJWT_PROJECT}
 set(MEMORYCHECK_COMMAND_OPTIONS "-q --tool=memcheck --leak-check=yes --num-callers=50 --trace-children=yes --leak-check=full --track-origins=yes --gen-suppressions=all")
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_C_STANDARD 99)
 add_compile_options(-Wall -Werror -Wextra -Wunused)
 
 # Must be set after the above
@@ -56,7 +57,7 @@ if (WITH_GNUTLS)
 endif()
 
 if (WITH_MBEDTLS)
-	pkg_check_modules(MBEDTLS mbedcrypto>=3.6.0 IMPORTED_TARGET REQUIRED)
+	pkg_check_modules(MBEDTLS mbedcrypto>=2.16.0 IMPORTED_TARGET REQUIRED)
 endif()
 
 if (WITH_LIBCURL)
@@ -68,7 +69,7 @@ if (WITH_KCAPI_MD)
 endif()
 
 # Required
-pkg_check_modules(OPENSSL openssl>=3.0.0 IMPORTED_TARGET
+pkg_check_modules(OPENSSL openssl>=1.1.0 IMPORTED_TARGET
 		  REQUIRED)
 
 add_library(jwt SHARED)
@@ -148,6 +149,7 @@ if (GNUTLS_FOUND)
 	target_link_libraries(jwt PUBLIC PkgConfig::GNUTLS)
 	target_link_libraries(jwt_static PUBLIC PkgConfig::GNUTLS)
 	list(APPEND JWT_SOURCES
+	     libjwt/gnutls/jwk-parse.c
 	     libjwt/gnutls/sign-verify.c)
 endif()
 
@@ -157,6 +159,7 @@ if (MBEDTLS_FOUND)
 	target_link_libraries(jwt PUBLIC PkgConfig::MBEDTLS)
 	target_link_libraries(jwt_static PUBLIC PkgConfig::MBEDTLS)
 	list(APPEND JWT_SOURCES
+	     libjwt/mbedtls/jwk-parse.c
 	     libjwt/mbedtls/sign-verify.c)
 endif()
 
@@ -198,8 +201,10 @@ jwt_add_tool(NAME jwt-generate
 	     SRC tools/jwt-generate.c)
 jwt_add_tool(NAME jwk2key
 	     SRC tools/jwk2key.c)
+if (OPENSSL_VERSION VERSION_GREATER_EQUAL "3.0.0")
 jwt_add_tool(NAME key2jwk
 	     SRC tools/key2jwk.c)
+endif()
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/tools/
 	DESTINATION ${CMAKE_INSTALL_MANDIR}/man1
 	FILES_MATCHING PATTERN "*.1")

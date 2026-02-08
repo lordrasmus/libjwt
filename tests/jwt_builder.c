@@ -846,7 +846,6 @@ START_TEST(sign_es256_bad_sig)
 
 	err = jwt_builder_error_msg(builder);
 	ck_assert_ptr_nonnull(err);
-	/* Fails in different ways depending on the backend */
 	ck_assert_mem_eq(err, "JWT[", 4);
 
 	free_key();

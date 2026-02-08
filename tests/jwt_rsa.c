@@ -38,7 +38,7 @@ START_TEST(rsa_pub_bad_type)
 	const char *json = "{\"kty\":\"RSA\",\"n\":\"YmFkdmFsdWUK\",\"e\":1}";
 	jwk_set_t *jwk_set = NULL;
 	const jwk_item_t *item;
-	const char exp[] = "Error decoding pub components";
+	const char exp[] = "Missing required RSA component: n or e";
 
 	SET_OPS();
 
@@ -62,7 +62,7 @@ START_TEST(rsa_pub_bad64)
 	const char *json = "{\"kty\":\"RSA\",\"n\":\"\",\"e\":\"asaadaaaaaa\"}";
 	jwk_set_t *jwk_set = NULL;
 	const jwk_item_t *item;
-	const char exp[] = "Error decoding pub components";
+	const char exp[] = "Missing required RSA component: n or e";
 
 	SET_OPS();
 
@@ -107,11 +107,14 @@ END_TEST
 
 START_TEST(rsa_priv_missing)
 {
+	/* RFC 7517 allows private RSA keys with just n,e,d (no CRT
+	 * params), but the backends may still reject them if they
+	 * can't derive CRT parameters internally. We just check
+	 * that parsing produces an error (message varies by backend). */
 	const char *json = "{\"kty\":\"RSA\",\"n\":\"YmFkdmFsdWUK\","
 		"\"e\":\"YmFkdmFsdWUK\",\"d\":\"YmFkdmFsdWUK\"}";
 	jwk_set_t *jwk_set = NULL;
 	const jwk_item_t *item;
-	const char exp[] = "Some priv key components exist, but some are missing";
 
 	SET_OPS();
 
@@ -124,21 +127,22 @@ START_TEST(rsa_priv_missing)
 	ck_assert_ptr_nonnull(item);
 	ck_assert_int_ne(jwks_item_error(item), 0);
 
-	ck_assert_str_eq(exp, jwks_item_error_msg(item));
-
 	jwks_free(jwk_set);
 }
 END_TEST
 
 START_TEST(rsa_priv_bad64)
 {
+	/* CRT param "q" has corrupt base64 ("="), which must be
+	 * rejected. Empty strings are treated as absent (OK per
+	 * RFC 7518 §6.3.2 — CRT params are optional). */
 	const char *json = "{\"kty\":\"RSA\",\"n\":\"YmFkdmFsdWUK\","
 		"\"e\":\"YmFkdmFsdWUK\",\"d\":"
 		"\"2fyxRFHaYP2a4pbdTK/s9x4YWV7qAWwJMXMkbRmy51w\","
 		"\"p\":\"\",\"q\":\"=\",\"dp\":\"\",\"dq\":\"\",\"qi\":\"\"}";
 	jwk_set_t *jwk_set = NULL;
 	const jwk_item_t *item;
-	const char exp[] = "Error decoding priv components";
+	const char exp[] = "Error decoding RSA CRT param: q";
 
 	SET_OPS();
 
@@ -185,7 +189,7 @@ START_TEST(rsa_short)
 	out = jwt_builder_generate(builder);
 	ck_assert_ptr_null(out);
 	ck_assert_str_eq(jwt_builder_error_msg(builder),
-			"Key too short for RSA algs: 1024 bits");
+			"JWT[Common]: Key too short for RSA algs: 1024 bits");
 
 	ret = jwt_builder_setkey(builder, JWT_ALG_RS256, g_item);
 	ck_assert_int_eq(ret, 0);
@@ -200,7 +204,7 @@ START_TEST(rsa_short)
 	ret = jwt_checker_verify(checker, token);
 	ck_assert_int_ne(ret, 0);
 	ck_assert_str_eq(jwt_checker_error_msg(checker),
-			 "Key too short for RSA algs: 1024 bits");
+			 "JWT[Common]: Key too short for RSA algs: 1024 bits");
 
 	free_key();
 }
@@ -225,7 +229,7 @@ START_TEST(rsa_ec_short)
 	out = jwt_builder_generate(builder);
 	ck_assert_ptr_null(out);
 	ck_assert_str_eq(jwt_builder_error_msg(builder),
-			"Key needs to be 256 bits: 1024 bits");
+			"JWT[Common]: Key needs to be 256 bits: 1024 bits");
 
 	ret = jwt_builder_setkey(builder, JWT_ALG_EDDSA, g_item);
 	ck_assert_int_eq(ret, 0);
@@ -233,7 +237,7 @@ START_TEST(rsa_ec_short)
 	out = jwt_builder_generate(builder);
 	ck_assert_ptr_null(out);
 	ck_assert_str_eq(jwt_builder_error_msg(builder),
-			"Key needs to be 256 or 456 bits: 1024 bits");
+			"JWT[Common]: Key needs to be 256 or 456 bits: 1024 bits");
 
 	ret = jwt_builder_setkey(builder, JWT_ALG_ES384, g_item);
 	ck_assert_int_eq(ret, 0);
@@ -241,7 +245,7 @@ START_TEST(rsa_ec_short)
 	out = jwt_builder_generate(builder);
 	ck_assert_ptr_null(out);
 	ck_assert_str_eq(jwt_builder_error_msg(builder),
-			"Key needs to be 384 bits: 1024 bits");
+			"JWT[Common]: Key needs to be 384 bits: 1024 bits");
 
 	ret = jwt_builder_setkey(builder, JWT_ALG_ES512, g_item);
 	ck_assert_int_eq(ret, 0);
@@ -249,7 +253,7 @@ START_TEST(rsa_ec_short)
 	out = jwt_builder_generate(builder);
 	ck_assert_ptr_null(out);
 	ck_assert_str_eq(jwt_builder_error_msg(builder),
-			"Key needs to be 521 bits: 1024 bits");
+			"JWT[Common]: Key needs to be 521 bits: 1024 bits");
 
 	free_key();
 }

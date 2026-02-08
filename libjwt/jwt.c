@@ -144,21 +144,21 @@ static int __check_hmac(jwt_t *jwt)
 	case JWT_ALG_HS256:
 		if (key_bits >= 256)
 			return 0;
-		jwt_write_error(jwt, "Key too short for HS256: %d bits",
+		jwt_write_error(jwt, "JWT[Common]: Key too short for HS256: %d bits",
 				key_bits);
 		break;
 
 	case JWT_ALG_HS384:
 		if (key_bits >= 384)
 			return 0;
-		jwt_write_error(jwt, "Key too short for HS384: %d bits",
+		jwt_write_error(jwt, "JWT[Common]: Key too short for HS384: %d bits",
 				key_bits);
 		break;
 
 	case JWT_ALG_HS512:
 		if (key_bits >= 512)
 			return 0;
-		jwt_write_error(jwt, "Key too short for HS512: %d bits",
+		jwt_write_error(jwt, "JWT[Common]: Key too short for HS512: %d bits",
 				key_bits);
 		break;
 	// LCOV_EXCL_START
@@ -184,14 +184,14 @@ static int __check_key_bits(jwt_t *jwt)
 	case JWT_ALG_PS512:
 		if (key_bits >= 2048)
 			return 0;
-		jwt_write_error(jwt, "Key too short for RSA algs: %d bits",
+		jwt_write_error(jwt, "JWT[Common]: Key too short for RSA algs: %d bits",
 				key_bits);
 		break;
 
 	case JWT_ALG_EDDSA:
 		if (key_bits == 256 || key_bits == 456)
 			return 0;
-		jwt_write_error(jwt, "Key needs to be 256 or 456 bits: %d bits",
+		jwt_write_error(jwt, "JWT[Common]: Key needs to be 256 or 456 bits: %d bits",
 				key_bits);
 		break;
 
@@ -199,21 +199,21 @@ static int __check_key_bits(jwt_t *jwt)
 	case JWT_ALG_ES256:
 		if (key_bits == 256)
 			return 0;
-		jwt_write_error(jwt, "Key needs to be 256 bits: %d bits",
+		jwt_write_error(jwt, "JWT[Common]: Key needs to be 256 bits: %d bits",
 				key_bits);
 		break;
 
 	case JWT_ALG_ES384:
 		if (key_bits == 384)
 			return 0;
-		jwt_write_error(jwt, "Key needs to be 384 bits: %d bits",
+		jwt_write_error(jwt, "JWT[Common]: Key needs to be 384 bits: %d bits",
 				key_bits);
 		break;
 
 	case JWT_ALG_ES512:
 		if (key_bits == 521)
 			return 0;
-		jwt_write_error(jwt, "Key needs to be 521 bits: %d bits",
+		jwt_write_error(jwt, "JWT[Common]: Key needs to be 521 bits: %d bits",
 				key_bits);
 		break;
 	// LCOV_EXCL_START
@@ -302,7 +302,7 @@ int jwt_sign(jwt_t *jwt, char **out, unsigned int *len, const char *str,
 			 * other than an internal fatal error in the crypto
 			 * library. */
 			// LCOV_EXCL_START
-			jwt_write_error(jwt, "Token failed signing");
+			jwt_write_error(jwt, "JWT[Common]: Token failed signing");
 			return 1;
 			// LCOV_EXCL_STOP
 		} else {
@@ -330,7 +330,7 @@ int jwt_sign(jwt_t *jwt, char **out, unsigned int *len, const char *str,
 		if (__check_key_bits(jwt))
 			return 1;
 		if (jwt_ops->sign_sha_pem(jwt, out, len, str, str_len)) {
-			jwt_write_error(jwt, "Token failed signing");
+			jwt_write_error(jwt, "JWT[Common]: Token failed signing");
 			return 1;
 		} else {
 			return 0;
@@ -405,7 +405,7 @@ jwt_t *jwt_verify_sig(jwt_t *jwt, const char *head, unsigned int head_len,
 	case JWT_ALG_HS384:
 	case JWT_ALG_HS512:
 		if (_verify_sha_hmac(jwt, head, head_len, sig_b64))
-			jwt_write_error(jwt, "Token failed verification");
+			jwt_write_error(jwt, "JWT[Common]: Token failed verification");
 		break;
 
 	/* RSA */
@@ -431,13 +431,13 @@ jwt_t *jwt_verify_sig(jwt_t *jwt, const char *head, unsigned int head_len,
 
 		sig = jwt_base64uri_decode(sig_b64, &sig_len);
 		if (sig == NULL) {
-			jwt_write_error(jwt, "Error decoding signature");
+			jwt_write_error(jwt, "JWT[Common]: Error decoding signature");
 			break;
 		}
 
 		if (jwt_ops->verify_sha_pem(jwt, head, head_len,
 					    (unsigned char *)sig, sig_len))
-			jwt_write_error(jwt, "Token failed verification");
+			jwt_write_error(jwt, "JWT[Common]: Token failed verification");
 		break;
 
 	/* You wut, mate? */

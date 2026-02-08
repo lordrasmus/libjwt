@@ -13,7 +13,7 @@ START_TEST(test_jwks_ec_pub_missing)
 	const char *json = "{\"kty\":\"EC\"}";
 	jwk_set_t *jwk_set = NULL;
 	const jwk_item_t *item;
-	const char exp[] = "Missing or invalid type for one of crv, x, or y for pub key";
+	const char exp[] = "Missing or invalid type for crv for EC key";
 
 	SET_OPS();
 
@@ -61,7 +61,7 @@ START_TEST(test_jwks_ec_pub_bad64)
 	const char *json = "{\"kty\":\"EC\",\"crv\":\"prime6v1\",\"x\":\"\",\"y\":\"asaad\"}";
 	jwk_set_t *jwk_set = NULL;
 	const jwk_item_t *item;
-	const char exp[] = "Error generating pub key from components";
+	const char exp[] = "Missing or invalid type for one of crv, x, or y for pub key";
 
 	SET_OPS();
 
@@ -96,8 +96,8 @@ START_TEST(test_jwks_ec_pub_bad_points)
 
 	item = jwks_item_get(jwk_set, 0);
 	ck_assert_ptr_nonnull(item);
-	ck_assert_int_ne(jwks_item_error(item), 0);
 
+	ck_assert_int_ne(jwks_item_error(item), 0);
 	ck_assert_str_eq(exp, jwks_item_error_msg(item));
 
 	jwks_free(jwk_set);

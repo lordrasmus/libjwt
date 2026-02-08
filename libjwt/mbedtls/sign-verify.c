@@ -14,6 +14,7 @@
 #include <mbedtls/error.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
+#include <mbedtls/version.h>
 #include <string.h>
 
 #include <jwt.h>
@@ -112,9 +113,15 @@ static int mbedtls_sign_sha_pem(jwt_t *jwt, char **out, unsigned int *len,
 		SIGN_ERROR("Failed RNG setup"); // LCOV_EXCL_LINE
 
 	/* Load the private key */
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+	if (mbedtls_pk_parse_key(&pk, (unsigned char *)jwt->key->pem,
+				 strlen(jwt->key->pem) + 1,
+				 NULL, 0))
+#else
 	if (mbedtls_pk_parse_key(&pk, (unsigned char *)jwt->key->pem,
 				 strlen(jwt->key->pem) + 1,
 				 NULL, 0, NULL, NULL))
+#endif
 		SIGN_ERROR("Error parsing private key"); // LCOV_EXCL_LINE
 
 	/* Determine the hash algorithm */
@@ -157,8 +164,8 @@ static int mbedtls_sign_sha_pem(jwt_t *jwt, char **out, unsigned int *len,
 		if (mbedtls_ecdsa_from_keypair(&ecdsa, mbedtls_pk_ec(pk)))
 			SIGN_ERROR("Error getting ECDSA keypair"); // LCOV_EXCL_LINE
 
-		if (mbedtls_ecdsa_sign(&ecdsa.private_grp, &r, &s,
-				       &ecdsa.private_d, hash,
+		if (mbedtls_ecdsa_sign(&ECDSA_RS_GRP(ecdsa), &r, &s,
+				       &ECDSA_RS_D(ecdsa), hash,
 				       mbedtls_md_get_size(md_info),
 				       mbedtls_ctr_drbg_random, &ctr_drbg))
 			SIGN_ERROR("Error signing token"); // LCOV_EXCL_LINE
@@ -198,27 +205,51 @@ static int mbedtls_sign_sha_pem(jwt_t *jwt, char **out, unsigned int *len,
 		case JWT_ALG_PS256:
 		case JWT_ALG_PS384:
 		case JWT_ALG_PS512:
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+			mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk),
+					MBEDTLS_RSA_PKCS_V21,
+					mbedtls_md_get_type(md_info));
+#else
 			if (mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk),
 					MBEDTLS_RSA_PKCS_V21,
 					mbedtls_md_get_type(md_info)))
 				SIGN_ERROR("Failed setting RSASSA-PSS padding"); // LCOV_EXCL_LINE
+#endif
 
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+			if (mbedtls_rsa_rsassa_pss_sign(mbedtls_pk_rsa(pk),
+					mbedtls_ctr_drbg_random, &ctr_drbg,
+					MBEDTLS_RSA_PRIVATE,
+					mbedtls_md_get_type(md_info),
+					mbedtls_md_get_size(md_info), hash, sig))
+#else
 			if (mbedtls_rsa_rsassa_pss_sign(mbedtls_pk_rsa(pk),
 					mbedtls_ctr_drbg_random, &ctr_drbg,
 					mbedtls_md_get_type(md_info),
 					mbedtls_md_get_size(md_info), hash, sig))
+#endif
 				SIGN_ERROR("Failed signing RSASSA-PSS"); // LCOV_EXCL_LINE
 			break;
 
 		case JWT_ALG_RS256:
 		case JWT_ALG_RS384:
 		case JWT_ALG_RS512:
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+			if (mbedtls_rsa_pkcs1_sign(mbedtls_pk_rsa(pk),
+						   mbedtls_ctr_drbg_random,
+						   &ctr_drbg,
+						   MBEDTLS_RSA_PRIVATE,
+						   mbedtls_md_get_type(md_info),
+						   mbedtls_md_get_size(md_info),
+						   hash, sig))
+#else
 			if (mbedtls_rsa_pkcs1_sign(mbedtls_pk_rsa(pk),
 						   mbedtls_ctr_drbg_random,
 						   &ctr_drbg,
 						   mbedtls_md_get_type(md_info),
 						   mbedtls_md_get_size(md_info),
 						   hash, sig))
+#endif
 				SIGN_ERROR("Error signing token"); // LCOV_EXCL_LINE
 			break;
 
@@ -226,7 +257,7 @@ static int mbedtls_sign_sha_pem(jwt_t *jwt, char **out, unsigned int *len,
 			SIGN_ERROR("Unexpected algorithm"); // LCOV_EXCL_LINE
 		}
 
-		sig_len = mbedtls_pk_rsa(pk)->private_len;
+		sig_len = RSA_CONTEXT_LEN(mbedtls_pk_rsa(pk));
 
 		*out = jwt_malloc(sig_len);
 		if (*out == NULL)
@@ -265,10 +296,17 @@ static int mbedtls_verify_sha_pem(jwt_t *jwt, const char *head,
 					  strlen(jwt->key->pem) + 1);
 	if (ret) {
 		/* Try loading as private key... */
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+		if (mbedtls_pk_parse_key(&pk, (const unsigned char *)
+					   jwt->key->pem,
+					   strlen(jwt->key->pem) + 1,
+					   NULL, 0))
+#else
 		if (mbedtls_pk_parse_key(&pk, (const unsigned char *)
 					   jwt->key->pem,
 					   strlen(jwt->key->pem) + 1,
 					   NULL, 0, NULL, NULL))
+#endif
 			VERIFY_ERROR("Failed to parse key"); // LCOV_EXCL_LINE
 	}
 
@@ -324,8 +362,8 @@ static int mbedtls_verify_sha_pem(jwt_t *jwt, const char *head,
 			VERIFY_ERROR("Failed to extract ECDSA public key"); // LCOV_EXCL_LINE
 
 		/* Verify ECDSA signature */
-		if (mbedtls_ecdsa_verify(&ecdsa.private_grp, hash,
-			mbedtls_md_get_size(md_info), &ecdsa.private_Q, &r, &s))
+		if (mbedtls_ecdsa_verify(&ECDSA_RS_GRP(ecdsa), hash,
+			mbedtls_md_get_size(md_info), &ECDSA_RS_Q(ecdsa), &r, &s))
 			VERIFY_ERROR("Failed to verify signature"); // LCOV_EXCL_LINE
 
 		/* Free ECDSA resources */
@@ -333,19 +371,43 @@ static int mbedtls_verify_sha_pem(jwt_t *jwt, const char *head,
 		mbedtls_mpi_free(&s);
 		mbedtls_ecdsa_free(&ecdsa);
 	} else if (mbedtls_pk_can_do(&pk, MBEDTLS_PK_RSA)) {
+		/* MbedTLS RSA verify reads exactly rsa->len bytes from sig
+		 * without bounds checking. Reject short signatures early to
+		 * avoid a heap-buffer-overflow. */
+		if ((size_t)sig_len != RSA_CONTEXT_LEN(mbedtls_pk_rsa(pk)))
+			VERIFY_ERROR("Failed to verify signature");
+
 		/* Verify RSA or RSA-PSS signature */
 		if (jwt->alg == JWT_ALG_PS256 || jwt->alg == JWT_ALG_PS384 ||
 		    jwt->alg == JWT_ALG_PS512) {
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+			if (mbedtls_rsa_rsassa_pss_verify(mbedtls_pk_rsa(pk),
+					NULL, NULL,
+					MBEDTLS_RSA_PUBLIC,
+					mbedtls_md_get_type(md_info),
+					mbedtls_md_get_size(md_info),
+					hash, sig))
+#else
 			if (mbedtls_rsa_rsassa_pss_verify(mbedtls_pk_rsa(pk),
 					mbedtls_md_get_type(md_info),
 					mbedtls_md_get_size(md_info),
 					hash, sig))
+#endif
 				VERIFY_ERROR("Failed to verify signature"); // LCOV_EXCL_LINE
 		} else {
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+			if (mbedtls_rsa_pkcs1_verify(mbedtls_pk_rsa(pk),
+					NULL, NULL,
+					MBEDTLS_RSA_PUBLIC,
+					mbedtls_md_get_type(md_info),
+					mbedtls_md_get_size(md_info),
+					hash, sig))
+#else
 			if (mbedtls_rsa_pkcs1_verify(mbedtls_pk_rsa(pk),
 					mbedtls_md_get_type(md_info),
 					mbedtls_md_get_size(md_info),
 					hash, sig))
+#endif
 				VERIFY_ERROR("Failed to verify signature"); // LCOV_EXCL_LINE
 		}
 	} else {
@@ -369,8 +431,8 @@ struct jwt_crypto_ops jwt_mbedtls_ops = {
 
 	/* Needs to be implemented */
 	.jwk_implemented	= 1,
-	.process_eddsa		= openssl_process_eddsa,
-	.process_rsa		= openssl_process_rsa,
-	.process_ec		= openssl_process_ec,
-	.process_item_free	= openssl_process_item_free,
+	.process_eddsa		= mbedtls_process_eddsa,
+	.process_rsa		= mbedtls_process_rsa,
+	.process_ec		= mbedtls_process_ec,
+	.process_item_free	= mbedtls_process_item_free,
 };

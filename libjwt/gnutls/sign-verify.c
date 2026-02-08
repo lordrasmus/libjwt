@@ -412,10 +412,9 @@ struct jwt_crypto_ops jwt_gnutls_ops = {
 	.sign_sha_pem		= gnutls_sign_sha_pem,
 	.verify_sha_pem		= gnutls_verify_sha_pem,
 
-	/* Needs to be implemented */
 	.jwk_implemented	= 1,
-	.process_eddsa		= openssl_process_eddsa,
-	.process_rsa		= openssl_process_rsa,
-	.process_ec		= openssl_process_ec,
-	.process_item_free	= openssl_process_item_free,
+	.process_eddsa		= gnutls_process_eddsa,
+	.process_rsa		= gnutls_process_rsa,
+	.process_ec		= gnutls_process_ec,
+	.process_item_free	= gnutls_process_item_free,
 };

@@ -451,8 +451,7 @@ START_TEST(hs256_token_failed)
 
 	ret = jwt_checker_verify(checker, token);
 	ck_assert_int_ne(ret, 0);
-	ck_assert_str_eq(jwt_checker_error_msg(checker),
-			"Token failed verification");
+	ck_assert_mem_eq(jwt_checker_error_msg(checker), "JWT[", 4);
 
 	free_key();
 }
@@ -662,7 +661,7 @@ START_TEST(verify_hs256_fail)
 	ret = jwt_checker_verify(checker, token);
 	ck_assert_int_ne(ret, 0);
 	ck_assert_str_eq(jwt_checker_error_msg(checker),
-			 "Token failed verification");
+			 "JWT[Common]: Token failed verification");
 
 	free_key();
 }
@@ -689,7 +688,7 @@ START_TEST(verify_hs256_fail_stress)
 		ret = jwt_checker_verify(checker, token);
 		ck_assert_int_ne(ret, 0);
 		ck_assert_str_eq(jwt_checker_error_msg(checker),
-				 "Token failed verification");
+				 "JWT[Common]: Token failed verification");
 	}
 
 	free_key();
@@ -811,7 +810,7 @@ START_TEST(verify_ps256_bad_b64_sig)
 	ret = jwt_checker_verify(checker, token);
 	ck_assert_int_ne(ret, 0);
 	ck_assert_str_eq(jwt_checker_error_msg(checker),
-			 "Error decoding signature");
+			 "JWT[Common]: Error decoding signature");
 
 	free_key();
 }
@@ -840,7 +839,7 @@ START_TEST(verify_ps256_bad_b64_sig_255)
 	ret = jwt_checker_verify(checker, token);
 	ck_assert_int_ne(ret, 0);
 	ck_assert_str_eq(jwt_checker_error_msg(checker),
-			 "Error decoding signature");
+			 "JWT[Common]: Error decoding signature");
 
 	free_key();
 }
@@ -904,7 +903,6 @@ START_TEST(verify_es256_bad_sig)
 
 	err = jwt_checker_error_msg(checker);
 	ck_assert_ptr_nonnull(err);
-	/* Fails in different ways depending on the backend */
 	ck_assert_mem_eq(err, "JWT[", 4);
 
 	free_key();

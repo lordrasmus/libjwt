@@ -68,6 +68,9 @@ static jwt_test_op_t jwt_test_ops[] = {
 	ck_assert_str_eq(ops, jwt_test_ops[_i].name);		\
 })
 
+#define OPS_IS_MBEDTLS() (jwt_test_ops[_i].type == JWT_CRYPTO_OPS_MBEDTLS)
+#define OPS_IS_GNUTLS() (jwt_test_ops[_i].type == JWT_CRYPTO_OPS_GNUTLS)
+
 #define jwt_freemem(__ptr) ({   \
         if (__ptr) {            \
                 free(__ptr);	\

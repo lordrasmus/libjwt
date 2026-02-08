@@ -101,6 +101,213 @@ static void jwk_process_values(jwt_json_t *jwk, jwk_item_t *item)
 	}
 }
 
+/* Decode a single base64url-encoded JWK field into a jwk_raw_t.
+ * Returns 0 on success, -1 if field not found or not a string,
+ * -2 if base64url decode fails. */
+static int decode_jwk_field(jwt_json_t *jwk, const char *name, jwk_raw_t *out)
+{
+	jwt_json_t *val;
+	const char *str;
+
+	out->bin = NULL;
+	out->len = 0;
+
+	val = jwt_json_obj_get(jwk, name);
+	if (val == NULL || !jwt_json_is_string(val))
+		return -1;
+
+	str = jwt_json_str_val(val);
+	if (str == NULL || !strlen(str))
+		return -1;
+
+	out->bin = jwt_base64uri_decode(str, &out->len);
+	if (out->bin == NULL)
+		return -2;
+
+	return 0;
+}
+
+static void free_jwk_raw(jwk_raw_t *r)
+{
+	/* Zeroize key material before freeing to avoid leaking
+	 * private key data in crash dumps or reused heap memory. */
+	if (r->bin && r->len > 0)
+		memset(r->bin, 0, r->len);
+	jwt_freemem(r->bin);
+	r->len = 0;
+}
+
+static int process_rsa_common(jwt_json_t *jwk, jwk_item_t *item)
+{
+	jwk_rsa_raw_t raw;
+	int ret;
+
+	memset(&raw, 0, sizeof(raw));
+
+	/* Required public components */
+	if (decode_jwk_field(jwk, "n", &raw.n) < 0 ||
+	    decode_jwk_field(jwk, "e", &raw.e) < 0) {
+		jwt_write_error(item,
+			"Missing required RSA component: n or e");
+		ret = -1;
+		goto cleanup;
+	}
+
+	/* The JWK "alg" field is informational metadata. Padding mode
+	 * (PKCS#1 v1.5 vs PSS) is selected at signing time based on
+	 * the JWT algorithm, not at key import time. No need to
+	 * distinguish RSA vs RSA-PSS keys here. */
+
+	/* Optional private components */
+	ret = decode_jwk_field(jwk, "d", &raw.d);
+	if (ret == -2) {
+		jwt_write_error(item,
+			"Error decoding RSA private component: d");
+		ret = -1;
+		goto cleanup;
+	}
+	if (ret == 0) {
+		/* RFC 7518 §6.3.2: CRT parameters (p,q,dp,dq,qi)
+		 * are optional. Decode whatever is present and let
+		 * the backend decide if it can work with what it
+		 * gets. Fields that are absent stay zeroed. A field
+		 * present but with corrupt base64 is an error. */
+		const char *crt_names[] = { "p", "q", "dp", "dq", "qi" };
+		jwk_raw_t *crt[] = { &raw.p, &raw.q, &raw.dp,
+				     &raw.dq, &raw.qi };
+
+		for (int c = 0; c < 5; c++) {
+			int r = decode_jwk_field(jwk, crt_names[c],
+						 crt[c]);
+			if (r == -2) {
+				jwt_write_error(item,
+					"Error decoding RSA CRT param: %s",
+					crt_names[c]);
+				ret = -1;
+				goto cleanup;
+			}
+			/* r == -1 means field absent, that's fine */
+		}
+
+		raw.is_private = 1;
+		item->is_private_key = 1;
+	}
+
+	ret = jwt_ops->process_rsa(item, &raw);
+
+cleanup:
+	free_jwk_raw(&raw.n);
+	free_jwk_raw(&raw.e);
+	free_jwk_raw(&raw.d);
+	free_jwk_raw(&raw.p);
+	free_jwk_raw(&raw.q);
+	free_jwk_raw(&raw.dp);
+	free_jwk_raw(&raw.dq);
+	free_jwk_raw(&raw.qi);
+	return ret;
+}
+
+static int process_ec_common(jwt_json_t *jwk, jwk_item_t *item)
+{
+	jwk_ec_raw_t raw;
+	jwt_json_t *crv_j;
+	const char *crv_str;
+	int ret;
+
+	memset(&raw, 0, sizeof(raw));
+
+	/* Curve is required */
+	crv_j = jwt_json_obj_get(jwk, "crv");
+	if (crv_j == NULL || !jwt_json_is_string(crv_j)) {
+		jwt_write_error(item,
+			"Missing or invalid type for crv for EC key");
+		return -1;
+	}
+	crv_str = jwt_json_str_val(crv_j);
+	raw.curve = crv_str;
+
+	/* Set curve on item */
+	strncpy(item->curve, crv_str, sizeof(item->curve) - 1);
+	item->curve[sizeof(item->curve) - 1] = '\0';
+
+	/* Required public components */
+	if (decode_jwk_field(jwk, "x", &raw.x) < 0 ||
+	    decode_jwk_field(jwk, "y", &raw.y) < 0) {
+		jwt_write_error(item,
+			"Missing or invalid type for one of crv, x, or y for pub key");
+		ret = -1;
+		goto cleanup;
+	}
+
+	/* Optional private component */
+	ret = decode_jwk_field(jwk, "d", &raw.d);
+	if (ret == -2) {
+		jwt_write_error(item,
+			"Error decoding EC private component: d");
+		ret = -1;
+		goto cleanup;
+	}
+	if (ret == 0) {
+		raw.is_private = 1;
+		item->is_private_key = 1;
+	}
+
+	ret = jwt_ops->process_ec(item, &raw);
+
+cleanup:
+	free_jwk_raw(&raw.x);
+	free_jwk_raw(&raw.y);
+	free_jwk_raw(&raw.d);
+	return ret;
+}
+
+static int process_eddsa_common(jwt_json_t *jwk, jwk_item_t *item)
+{
+	jwk_eddsa_raw_t raw;
+	jwt_json_t *crv_j;
+	const char *crv_str;
+	int ret;
+
+	memset(&raw, 0, sizeof(raw));
+
+	/* Curve is required */
+	crv_j = jwt_json_obj_get(jwk, "crv");
+	if (crv_j == NULL || !jwt_json_is_string(crv_j)) {
+		jwt_write_error(item,
+			"No curve component found for EdDSA key");
+		return -1;
+	}
+	crv_str = jwt_json_str_val(crv_j);
+	raw.curve = crv_str;
+
+	/* Set curve on item */
+	strncpy(item->curve, crv_str, sizeof(item->curve) - 1);
+	item->curve[sizeof(item->curve) - 1] = '\0';
+
+	/* EdDSA: private key from "d", public key from "x" */
+	ret = decode_jwk_field(jwk, "d", &raw.key);
+	if (ret == -2) {
+		jwt_write_error(item,
+			"Error decoding EdDSA private component: d");
+		return -1;
+	}
+	if (ret == 0) {
+		raw.is_private = 1;
+		item->is_private_key = 1;
+	} else if (decode_jwk_field(jwk, "x", &raw.key) == 0) {
+		raw.is_private = 0;
+	} else {
+		jwt_write_error(item,
+			"Need an 'x' or 'd' component and found neither");
+		return -1;
+	}
+
+	ret = jwt_ops->process_eddsa(item, &raw);
+
+	free_jwk_raw(&raw.key);
+	return ret;
+}
+
 static int process_octet(jwt_json_t *jwk, jwk_item_t *item)
 {
 	unsigned char *bin_k = NULL;
@@ -173,13 +380,13 @@ static jwk_item_t *jwk_process_one(jwk_set_t *jwk_set, jwt_json_t *jwk)
 
 	if (!strcmp(kty, "EC")) {
 		item->kty = JWK_KEY_TYPE_EC;
-		jwt_ops->process_ec(item->json, item);
+		process_ec_common(item->json, item);
 	} else if (!strcmp(kty, "RSA")) {
 		item->kty = JWK_KEY_TYPE_RSA;
-		jwt_ops->process_rsa(item->json, item);
+		process_rsa_common(item->json, item);
 	} else if (!strcmp(kty, "OKP")) {
 		item->kty = JWK_KEY_TYPE_OKP;
-		jwt_ops->process_eddsa(item->json, item);
+		process_eddsa_common(item->json, item);
 	} else if (!strcmp(kty, "oct")) {
 		item->kty = JWK_KEY_TYPE_OCT;
 		process_octet(item->json, item);
