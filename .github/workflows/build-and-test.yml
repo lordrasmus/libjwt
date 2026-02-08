@@ -68,6 +68,83 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: ctest -T memcheck
 
+  build-linux-gnutls-asan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: ConorMacBride/install-package@v1
+      with:
+        apt: gnutls-dev libssl-dev libjansson-dev pkg-config check bats jq
+
+    - name: Build and Test with GnuTLS (ASan+UBSan)
+      uses: threeal/cmake-action@v2.1.0
+      env:
+        CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+        LDFLAGS: -fsanitize=address,undefined
+      with:
+        options: |
+          CMAKE_BUILD_TYPE=Debug
+        build-args: |
+          --
+          all
+          check
+
+  build-linux-mbedtls:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: ConorMacBride/install-package@v1
+      with:
+        apt: libmbedtls-dev libssl-dev libjansson-dev pkg-config check bats jq
+
+    - name: Build and Test with MbedTLS (ASan+UBSan)
+      uses: threeal/cmake-action@v2.1.0
+      env:
+        CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+        LDFLAGS: -fsanitize=address,undefined
+      with:
+        options: |
+          WITH_MBEDTLS=YES
+          CMAKE_BUILD_TYPE=Debug
+        build-args: |
+          --
+          all
+          check
+
+  build-linux-mbedtls3:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: ConorMacBride/install-package@v1
+      with:
+        apt: libssl-dev libjansson-dev pkg-config check bats jq
+
+    - name: Build MbedTLS 3.6 from source
+      run: |
+        git clone --depth 1 --branch v3.6.2 https://github.com/Mbed-TLS/mbedtls.git /tmp/mbedtls
+        cmake -S /tmp/mbedtls -B /tmp/mbedtls/build \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          -DENABLE_PROGRAMS=OFF \
+          -DENABLE_TESTING=OFF \
+          -DCMAKE_BUILD_TYPE=Release
+        cmake --build /tmp/mbedtls/build -j$(nproc)
+        sudo cmake --install /tmp/mbedtls/build
+
+    - name: Build and Test with MbedTLS 3 (ASan+UBSan)
+      uses: threeal/cmake-action@v2.1.0
+      env:
+        CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+        LDFLAGS: -fsanitize=address,undefined
+        PKG_CONFIG_PATH: /usr/local/lib/pkgconfig
+      with:
+        options: |
+          WITH_MBEDTLS=YES
+          CMAKE_BUILD_TYPE=Debug
+        build-args: |
+          --
+          all
+          check
+
   build-linux-json-c:
     runs-on: ubuntu-latest
     steps:
